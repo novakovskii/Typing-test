@@ -81,29 +81,17 @@
           :href="label" 
           target="_blank"
           class="base-color"
+          :class="{'primary' : header.label === 'Value'}"
         >
           {{ label }}
         </a>
         <template v-else>
-          {{ label }}
+          <span
+            :class="{'primary' : header.label === 'Type'}"
+          >{{ label }}</span>
         </template>
       </template>
       </w-table>
-      <!-- <span class="title5">{{ title }}</span>
-      <div class="body primary mt2">{{ date }}</div>
-      <a 
-        :href="link" 
-        target="_blank" 
-        class="d-iblock mt2"
-      >
-        <w-button
-          color="primary" 
-          outline
-        >
-          Link
-          <w-icon class="ml2">mdi mdi-open-in-new</w-icon>
-        </w-button>
-      </a> -->
       <w-card class="body mt4 lh3">
         <template
           v-for="(word, idx) in sourceTextArray"
@@ -275,6 +263,7 @@ export default {
       this.title = news[randomIndex].title
       this.link = news[randomIndex].link
       this.date = news[randomIndex].pubDate
+      this.info.items = []
       this.info.items.push({type: 'Title', value: this.title})
       this.info.items.push({type: 'Link', value: this.link})
       this.info.items.push({type: 'Date', value: this.date})
