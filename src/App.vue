@@ -4,41 +4,61 @@
       class="px0 py6" 
       no-border
     >
-      <div class="title3">_typing test</div>
+      <div>
+        <div class="title3">Typing test</div>
+        <div class="title5 mt2 primary">Check your typing speed by typing latest world news</div>
+      </div>
       <div class="spacer"></div>
-      <w-flex 
-        no-grow 
-        gap="3" 
-        wrap
-      >
-        <w-select 
-          :items="languages" 
-          outline 
-          fit-to-content
-          v-model="languagesOptions"
-          inner-icon-left="mdi mdi-translate"
-          @input="onLanguageSelect"
-        >Language</w-select>
-        <w-select 
-          :items="countries" 
-          outline 
-          fit-to-content
-          v-model="countriesOptions"
-          inner-icon-left="mdi mdi-earth"
-          @input="onCountrySelect"
-        >Country</w-select>
-        <w-switch
-          v-model="isDarkTheme"
-          class="mt3 caption"
-          @input="onThemeSwitch"
+      <div>
+        <w-flex 
+          no-grow 
+          gap="3" 
+          wrap
         >
-          <template #thumb>
-            <w-icon>
-              {{ isDarkTheme ? 'mdi mdi-weather-night' : 'mdi mdi-white-balance-sunny' }}
-            </w-icon>
-          </template>
-        </w-switch>
-      </w-flex>
+          <w-select 
+            :items="languages" 
+            outline 
+            fit-to-content
+            v-model="languagesOptions"
+            inner-icon-left="mdi mdi-translate"
+            @input="onLanguageSelect"
+          >Language</w-select>
+          <w-select 
+            :items="countries" 
+            outline 
+            fit-to-content
+            v-model="countriesOptions"
+            inner-icon-left="mdi mdi-earth"
+            @input="onCountrySelect"
+          >Country</w-select>
+          <w-switch
+            v-model="isDarkTheme"
+            class="mt3 caption"
+            @input="onThemeSwitch"
+          >
+            <template #thumb>
+              <w-icon>
+                {{ isDarkTheme ? 'mdi mdi-weather-night' : 'mdi mdi-white-balance-sunny' }}
+              </w-icon>
+            </template>
+          </w-switch>
+        </w-flex>
+        <w-flex class="primary mt3" style="font-size: 12px;">
+          <span>Max text length</span>
+          <div class="spacer"></div>
+          <span>{{ this.textLength }} words</span>
+        </w-flex>
+        <w-slider
+          v-model="textLength"
+          color="primary"
+          class="mt3"
+          :min="60"
+          :max="180"
+          :step="20"
+          @input="onTextLengthChange"
+        >
+        </w-slider>
+      </div>
     </w-toolbar>
   </header>
   <main class="main mt8">
@@ -49,7 +69,27 @@
       <w-progress circle></w-progress>
     </w-flex>
     <template v-else>
-      <span class="title5">{{ title }}</span>
+      <w-table
+        :items="info.items"
+        :headers="info.headers"
+        class="body"
+        no-headers
+      >
+      <template #item-cell="{ item, label, header}">
+        <a 
+          v-if="item.type === 'Link' && header.label === 'Value'" 
+          :href="label" 
+          target="_blank"
+          class="base-color"
+        >
+          {{ label }}
+        </a>
+        <template v-else>
+          {{ label }}
+        </template>
+      </template>
+      </w-table>
+      <!-- <span class="title5">{{ title }}</span>
       <div class="body primary mt2">{{ date }}</div>
       <a 
         :href="link" 
@@ -63,8 +103,20 @@
           Link
           <w-icon class="ml2">mdi mdi-open-in-new</w-icon>
         </w-button>
-      </a>
-      <w-card class="body mt4 lh3">{{ sourceText }}</w-card>
+      </a> -->
+      <w-card class="body mt4 lh3">
+        <template
+          v-for="(word, idx) in sourceTextArray"
+          :key="idx"
+        >
+          <span
+            :class="{
+              'grey-light1' : idx < wordIndex,
+              'error' : idx < wordIndex && sourceTextArray[idx] !== inputTextArray[idx]
+            }"
+          >{{ word + ' '}}</span>
+        </template><span class="grey-light1">...</span>
+      </w-card>
       <w-textarea
         ref="textarea"
         no-autogrow
@@ -72,16 +124,36 @@
         outline
         rows="10"
         class="mt3"
+        v-model="inputText"
+        color="base"
+        @input="onInput"
       >
       </w-textarea>
       <w-flex justify-end class="mt3">
-        <w-button @click="setRandomNews(languagesOptions, countriesOptions, textLength)">
+        <w-button @click="regenerate">
           <w-icon class="mr1">mdi mdi-refresh</w-icon>
           Regenerate
         </w-button>
       </w-flex>
     </template>
   </main>
+  <w-dialog
+    v-model="showResultDialog"
+    :width="500"
+    :overlay-opacity="0.1"
+    overlay-color="primary"
+    transition="slide-fade-up"
+    class="lh3"
+    @close="onResultDialogClose"
+  >
+    <template #title>
+      <span class="title4">Current results</span>
+    </template>
+    Exercise time: <span class="primary">{{ Math.floor(totalTime / 1000) }}s</span> <br>
+    Current typing speed: <span class="primary">{{ speed }}</span> words per minute
+    <w-divider class="my3"></w-divider>
+    <span class="text-center d-block grey-light1">Press ESC to continue</span>
+  </w-dialog>
 </template>
 
 <script>
@@ -119,23 +191,34 @@ export default {
       sourceText: '',
       inputText: '',
       isStarted: false,
-      isFinished: false,
       startTime: null,
       finishTime: null,
       totalTime: null,
       speed: null,
       url: 'https://newsdata.io/api/1/news?apikey=pub_206834a89204e0fc9393ef17d7f8ea0f5f4e9',
-      textLength: 80
+      textLength: 60,
+      showResultDialog: false,
+      info: {
+        headers: [
+          { label: 'Type', key: 'type' },
+          { label: 'Value', key: 'value' },
+        ],
+        items: []
+      }
     }
   },
   methods: {
     onLanguageSelect () {
       localStorage.setItem('language', this.languagesOptions)
       this.loadNews()
+      this.inputText = ''
+      this.isStarted = false
     },
     onCountrySelect () {
       localStorage.setItem('country', this.countriesOptions)
       this.loadNews()
+      this.inputText = ''
+      this.isStarted = false
     },
     onThemeSwitch () {
       this.isDarkTheme ? this.$waveui.switchTheme('dark') : this.$waveui.switchTheme('light')
@@ -159,7 +242,11 @@ export default {
     },
     onNewsFetch (language, country, news) {
       localStorage.setItem(`news_${language}_${country}`, JSON.stringify(news))
+      this.setRandomNews(this.languagesOptions, this.countriesOptions)
       this.isLoaded = true
+      this.$nextTick(() => {
+        this.$refs.textarea.$refs.textarea.focus()
+      })
     },
     loadNews () {
       const fetchDate = localStorage.getItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}`)
@@ -174,23 +261,76 @@ export default {
           localStorage.setItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}`, new Date())
         } else {
           this.isLoaded = true
-          this.setRandomNews(this.languagesOptions, this.countriesOptions, this.textLength)
+          this.$nextTick(() => {
+            this.$refs.textarea.$refs.textarea.focus()
+          })
+          this.setRandomNews(this.languagesOptions, this.countriesOptions)
         }
       }
     },
-    setRandomNews (language, country, textLength) {
+    setRandomNews (language, country) {
       const news = JSON.parse(localStorage.getItem(`news_${language}_${country}`))
       const randomIndex = Math.floor(Math.random() * news.length)
+      this.sourceText = news[randomIndex].content
       this.title = news[randomIndex].title
-      const textArray = news[randomIndex].content.split(' ')
-      textArray.splice(textLength)
-      this.sourceText = textArray.join(' ') + '...'
       this.link = news[randomIndex].link
       this.date = news[randomIndex].pubDate
+      this.info.items.push({type: 'Title', value: this.title})
+      this.info.items.push({type: 'Link', value: this.link})
+      this.info.items.push({type: 'Date', value: this.date})
+    },
+    regenerate () {
+      this.setRandomNews(this.languagesOptions, this.countriesOptions)
+      this.inputText = ''
+      this.isStarted = false
+    },
+    onInput () {
+      if (!this.isStarted) {
+        this.isStarted = true
+        this.startTime = Date.now()
+      }
+      if (this.isFinished) {
+        this.finishTime = Date.now()
+        this.totalTime = this.finishTime - this.startTime
+        this.isStarted = false
+        this.speed = Math.floor(this.sourceTextArray.length / (this.totalTime / 60000))
+        this.openResultDialog()
+      }
+    },
+    openResultDialog () {
+      this.showResultDialog = true
+    },
+    onResultDialogClose () {
+      this.showResultDialog = false
+      this.setRandomNews(this.languagesOptions, this.countriesOptions)
+      this.inputText = ''
+      this.$refs.textarea.$refs.textarea.focus()
+    },
+    onTextLengthChange () {
+      localStorage.setItem('textLength', this.textLength)
+      this.inputText = ''
+    }
+  },
+  computed: {
+    sourceTextArray () {
+      return this.splicedSourceText.split(' ')
+    },
+    inputTextArray () {
+      return this.inputText.split(' ')
+    },
+    wordIndex () {
+      return this.inputTextArray.length - 1
+    },
+    isFinished () {
+      return this.sourceTextArray.length === this.wordIndex
+    },
+    splicedSourceText () {
+      const splicedSourceTextArray = this.sourceText.split(' ')
+      splicedSourceTextArray.splice(this.textLength)
+      return splicedSourceTextArray.join(' ')
     }
   },
   mounted () {
-    if (this.isLoaded) this.$refs.textarea.$refs.textarea.focus()
     //theme initialise
     const theme = localStorage.getItem('theme')
     if (!theme) {
@@ -214,6 +354,13 @@ export default {
       localStorage.setItem('country', this.countriesOptions)
     } else {
       this.countriesOptions = country
+    }
+    //max text length initialise
+    const textLength = localStorage.getItem('textLength')
+    if (!textLength) {
+      localStorage.setItem('textLength', this.textLength)
+    } else {
+      this.textLength = Number(textLength)
     }
     //load news
     this.loadNews()
