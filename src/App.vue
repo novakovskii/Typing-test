@@ -337,6 +337,7 @@ export default {
         .replaceAll(/ \./g, '.')
         .replaceAll(/ ,/g, ',')
       this.title = news[randomIndex].title
+      
       this.category = news[randomIndex].category.join(', ')[0].toUpperCase() + news[randomIndex].category.join(', ').slice(1)
       this.link = news[randomIndex].link
       this.date = news[randomIndex].pubDate
