@@ -31,6 +31,14 @@
             inner-icon-left="mdi mdi-earth"
             @input="onCountrySelect"
           >Country</w-select>
+          <w-select 
+            :items="categories" 
+            outline 
+            fit-to-content
+            v-model="categoriesOptions"
+            inner-icon-left="mdi mdi-format-list-bulleted-type"
+            @input="onCategorySelect"
+          >Category</w-select>
           <w-switch
             v-model="isDarkTheme"
             class="mt3 caption"
@@ -171,8 +179,63 @@ export default {
           value: 'ru'
         }
       ],
+      categories: [
+        { 
+          label: 'All',
+          value: 'all'  
+        },
+        { 
+          label: 'Business',
+          value: 'business'  
+        },
+        { 
+          label: 'Entertainment',
+          value: 'entertainment'
+        },
+        { 
+          label: 'Environment',
+          value: 'environment'
+        },
+        { 
+          label: 'Food',
+          value: 'food'
+        },
+        { 
+          label: 'Health',
+          value: 'health'
+        },
+        { 
+          label: 'Politics',
+          value: 'politics'
+        },
+        { 
+          label: 'Science',
+          value: 'science'
+        },
+        { 
+          label: 'Sports',
+          value: 'sports'
+        },
+        { 
+          label: 'Technology',
+          value: 'technology'
+        },
+        { 
+          label: 'Top',
+          value: 'top'
+        },
+        { 
+          label: 'Tourism',
+          value: 'tourism'
+        },
+        { 
+          label: 'World',
+          value: 'world'
+        }
+      ],
       languagesOptions: 'en',
       countriesOptions: 'all',
+      categoriesOptions: 'all',
       title: '',
       date: null,
       link: '',
@@ -208,11 +271,17 @@ export default {
       this.inputText = ''
       this.isStarted = false
     },
+    onCategorySelect () {
+      localStorage.setItem('category', this.categoriesOptions)
+      this.loadNews()
+      this.inputText = ''
+      this.isStarted = false
+    },
     onThemeSwitch () {
       this.isDarkTheme ? this.$waveui.switchTheme('dark') : this.$waveui.switchTheme('light')
       localStorage.setItem('theme', this.isDarkTheme ? 'dark' : 'light')
     },
-    async fetchNews(language, country, callback) {
+    async fetchNews(language, country, category, callback) {
       this.isLoaded = false
       let response
       let news = []
@@ -222,54 +291,63 @@ export default {
         const results = await fetch(this.url + 
           `&language=${language}` + 
           `${country !== 'all' ? '&country=' + country : ''}` + 
+          `${category !== 'all' ? '&category=' + category : ''}` + 
           `${nextPage !== undefined ? '&page=' + nextPage : ''}`)
         response = await results.json()
         news = news.concat(response.results)
       }
-      callback(language, country, news);
+      callback(language, country, category, news);
     },
-    onNewsFetch (language, country, news) {
-      localStorage.setItem(`news_${language}_${country}`, JSON.stringify(news))
-      this.setRandomNews(this.languagesOptions, this.countriesOptions)
+    onNewsFetch (language, country, category, news) {
+      localStorage.setItem(`news_${language}_${country}_${category}`, JSON.stringify(news))
+      this.setRandomNews(this.languagesOptions, this.countriesOptions, this.categoriesOptions)
       this.isLoaded = true
       this.$nextTick(() => {
         this.$refs.textarea.$refs.textarea.focus()
       })
     },
     loadNews () {
-      const fetchDate = localStorage.getItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}`)
+      const fetchDate = localStorage.getItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}_${this.categoriesOptions}`)
       if (!fetchDate) {
-        this.fetchNews(this.languagesOptions, this.countriesOptions, this.onNewsFetch)
-        localStorage.setItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}`, new Date())
+        this.fetchNews(this.languagesOptions, this.countriesOptions, this.categoriesOptions, this.onNewsFetch)
+        localStorage.setItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}_${this.categoriesOptions}`, new Date())
       } else {
         const fetchDateWithoutTime = new Date(fetchDate).setHours(0, 0, 0, 0)
         const currentDateWithoutTime = new Date().setHours(0, 0, 0, 0)
         if (fetchDateWithoutTime !== currentDateWithoutTime) {
-          this.fetchNews(this.languagesOptions, this.countriesOptions, this.onNewsFetch)
-          localStorage.setItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}`, new Date())
+          this.fetchNews(this.languagesOptions, this.countriesOptions, this.categoriesOptions, this.onNewsFetch)
+          localStorage.setItem(`fetchDate_${this.languagesOptions}_${this.countriesOptions}_${this.categoriesOptions}`, new Date())
         } else {
           this.isLoaded = true
           this.$nextTick(() => {
             this.$refs.textarea.$refs.textarea.focus()
           })
-          this.setRandomNews(this.languagesOptions, this.countriesOptions)
+          this.setRandomNews(this.languagesOptions, this.countriesOptions, this.categoriesOptions)
         }
       }
     },
-    setRandomNews (language, country) {
-      const news = JSON.parse(localStorage.getItem(`news_${language}_${country}`))
+    setRandomNews (language, country, category) {
+      const news = JSON.parse(localStorage.getItem(`news_${language}_${country}_${category}`))
       const randomIndex = Math.floor(Math.random() * news.length)
       this.sourceText = news[randomIndex].content
+        .replaceAll(/[‹›‚‘‛’]/g, '\'')
+        .replaceAll(/[«»„“‟”]/g, '"')
+        .replaceAll(/[–—‒―⸺⸻]/g, '-')
+        .replaceAll(/[…]/g, '...')
+        .replaceAll(/ \./g, '.')
+        .replaceAll(/ ,/g, ',')
       this.title = news[randomIndex].title
+      this.category = news[randomIndex].category.join(', ')[0].toUpperCase() + news[randomIndex].category.join(', ').slice(1)
       this.link = news[randomIndex].link
       this.date = news[randomIndex].pubDate
       this.info.items = []
       this.info.items.push({type: 'Title', value: this.title})
+      this.info.items.push({type: 'Category', value: this.category})
       this.info.items.push({type: 'Link', value: this.link})
       this.info.items.push({type: 'Date', value: this.formattedDate})
     },
     regenerate () {
-      this.setRandomNews(this.languagesOptions, this.countriesOptions)
+      this.setRandomNews(this.languagesOptions, this.countriesOptions, this.categoriesOptions)
       this.inputText = ''
       this.isStarted = false
     },
@@ -291,7 +369,7 @@ export default {
     },
     onResultDialogClose () {
       this.showResultDialog = false
-      this.setRandomNews(this.languagesOptions, this.countriesOptions)
+      this.setRandomNews(this.languagesOptions, this.countriesOptions, this.categoriesOptions)
       this.inputText = ''
       this.$refs.textarea.$refs.textarea.focus()
     },
@@ -352,6 +430,13 @@ export default {
       localStorage.setItem('country', this.countriesOptions)
     } else {
       this.countriesOptions = country
+    }
+    //category initialise
+    const category = localStorage.getItem('category')
+    if (!category) {
+      localStorage.setItem('category', this.categoriesOptions)
+    } else {
+      this.categoriesOptions = category
     }
     //max text length initialise
     const textLength = localStorage.getItem('textLength')
